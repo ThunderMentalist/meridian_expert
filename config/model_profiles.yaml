@@ -1,0 +1,36 @@
+router:
+  model: gpt-5
+  reasoning_effort: medium
+  enabled: true
+triage:
+  model: gpt-5
+  reasoning_effort: medium
+  enabled: true
+theory:
+  model: gpt-5
+  reasoning_effort: high
+  enabled: true
+usage:
+  model: gpt-5
+  reasoning_effort: high
+  enabled: true
+updates:
+  model: gpt-5
+  reasoning_effort: high
+  enabled: true
+reviewer:
+  model: gpt-5
+  reasoning_effort: medium
+  enabled: true
+formatter:
+  model: gpt-5
+  reasoning_effort: low
+  enabled: true
+builder_spec:
+  model: gpt-5-pro
+  reasoning_effort: high
+  enabled: false
+builder_codegen:
+  model: gpt-5-pro
+  reasoning_effort: high
+  enabled: false

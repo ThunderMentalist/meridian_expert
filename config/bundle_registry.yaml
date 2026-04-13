@@ -1,0 +1,92 @@
+bundles:
+  - name: meridian_model_core
+    priority: high
+    families: [theory, usage, updates]
+    domains: [model, auto]
+    files:
+      - meridian/model/model.py
+      - meridian/model/context.py
+      - meridian/model/equations.py
+      - meridian/model/adstock_hill.py
+      - meridian/model/spec.py
+      - meridian/model/prior_distribution.py
+      - meridian/model/posterior_sampler.py
+      - meridian/model/transformers.py
+      - meridian/model/*_test.py
+  - name: meridian_analysis_core
+    priority: high
+    families: [theory, usage, updates]
+    domains: [analysis, optimization, auto]
+    files:
+      - meridian/analysis/analyzer.py
+      - meridian/model/context.py
+      - meridian/model/equations.py
+      - meridian/model/adstock_hill.py
+      - meridian/model/transformers.py
+      - meridian/analysis/*_test.py
+  - name: meridian_optimization
+    priority: high
+    families: [usage, updates]
+    domains: [optimization, auto]
+    files:
+      - meridian/analysis/optimizer.py
+      - meridian/analysis/analyzer.py
+      - meridian/model/model.py
+  - name: meridian_data_loading
+    priority: low
+    families: [theory, usage]
+    domains: [data]
+    files: [meridian/data]
+  - name: meridian_eda
+    priority: low
+    families: [theory, usage]
+    domains: [eda]
+    files: [meridian/eda]
+  - name: meridian_visualization_summary
+    priority: low
+    families: [usage]
+    domains: [analysis]
+    files: [meridian/analysis]
+  - name: meridian_schema_serialization
+    priority: low
+    families: [updates]
+    domains: [schema]
+    files: [meridian/schema]
+  - name: meridian_mlflow
+    priority: low
+    families: [usage, updates]
+    domains: [mlflow]
+    files: [meridian/mlflow]
+  - name: meridian_scenario_planner
+    priority: low
+    families: [usage]
+    domains: [scenario_planner]
+    files: [meridian/scenario_planner]
+  - name: aux_control_contribution_hotspot
+    priority: high
+    families: [updates, usage, theory]
+    domains: [analysis, optimization, auto]
+    files:
+      - meridian_aux/src/meridian_aux/contribution/control_contribution.py
+      - meridian_aux/tests/test_contribution_control_contribution.py
+      - meridian/analysis/analyzer.py
+      - meridian/model/model.py
+  - name: aux_predictive_extension
+    priority: high
+    families: [usage, updates]
+    domains: [model, data, auto]
+    files:
+      - meridian_aux/src/meridian_aux/predict/predict.py
+      - meridian_aux/tests/test_predict_predict.py
+      - meridian/model/model.py
+  - name: aux_analysis_dependent
+    priority: high
+    families: [updates, usage]
+    domains: [analysis, optimization, data, auto]
+    files:
+      - meridian_aux/src/meridian_aux/optimization/roi.py
+      - meridian_aux/src/meridian_aux/diagnostics/residuals.py
+      - meridian_aux/src/meridian_aux/data/actuals_vs_fitted.py
+      - meridian_aux/src/meridian_aux/data/curves.py
+      - meridian_aux/src/meridian_aux/nest/nest.py
+      - meridian_aux/src/meridian_aux/charts/transformed.py

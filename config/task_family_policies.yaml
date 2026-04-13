@@ -1,0 +1,13 @@
+theory:
+  visible_appendix_default: false
+  visible_code_citations_default: false
+  snippets_allowed: false
+usage:
+  visible_appendix_default: false
+  snippets_allowed: true
+updates:
+  default_output: risk_assessment
+  plan_requires_explicit_request: true
+builder:
+  enabled: false
+  hidden_from_default_routing: true
