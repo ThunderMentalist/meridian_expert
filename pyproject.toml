@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meridian-expert"
+version = "0.1.0"
+description = "CLI-first, review-gated expert system for Meridian + Meridian_Aux"
+requires-python = ">=3.11"
+dependencies = [
+  "openai>=1.40.0",
+  "pydantic>=2.8.0",
+  "typer>=0.12.3",
+  "rich>=13.7.1",
+  "pyyaml>=6.0.1",
+  "jinja2>=3.1.4",
+  "nbformat>=5.10.4"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2.0", "ruff>=0.5.0", "mypy>=1.10.0"]
+
+[project.scripts]
+meridian-expert = "meridian_expert.cli:app"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = false

@@ -1,0 +1,3 @@
+meridian_repo_path: ../meridian
+meridian_aux_repo_path: ../meridian_aux
+workspace_path: ./runtime

@@ -1,0 +1,53 @@
+validated_baseline:
+  meridian_version: "1.5.1"
+  notes: "Current Meridian_Aux assumptions validated against Meridian 1.5.1"
+  last_confirmed_ref: "v1.5.1"
+  last_confirmed_date: "2026-04-13"
+relationships:
+  - upstream: meridian/analysis/analyzer.py
+    dependents:
+      - src/meridian_aux/contribution/control_contribution.py
+      - src/meridian_aux/optimization/roi.py
+      - src/meridian_aux/data/curves.py
+      - src/meridian_aux/diagnostics/residuals.py
+      - src/meridian_aux/data/actuals_vs_fitted.py
+      - src/meridian_aux/dashboard/nordic_client.py
+      - src/meridian_aux/nest/nest.py
+    classification: semi_internal
+    risk_level: high
+    known_breakage_patterns:
+      - Analyzer signature changes
+      - return shape changes
+  - upstream: meridian/model/model.py
+    dependents:
+      - src/meridian_aux/predict/predict.py
+      - src/meridian_aux/contribution/control_contribution.py
+    classification: semi_internal
+    risk_level: high
+    known_breakage_patterns:
+      - context/model object contracts
+  - upstream: meridian/model/transformers.py
+    dependents:
+      - src/meridian_aux/charts/transformed.py
+      - src/meridian_aux/contribution/control_contribution.py
+      - src/meridian_aux/data/curves.py
+    classification: compat_shim
+    risk_level: medium
+  - upstream: meridian/model/adstock_hill.py
+    dependents:
+      - src/meridian_aux/charts/transformed.py
+      - src/meridian_aux/data/curves.py
+    classification: compat_shim
+    risk_level: medium
+  - upstream: meridian/model/equations.py
+    dependents:
+      - src/meridian_aux/charts/transformed.py
+      - src/meridian_aux/contribution/control_contribution.py
+    classification: semi_internal
+    risk_level: medium
+source_authority:
+  - implementation
+  - tests
+  - docs_examples_notebooks
+  - changelog
+  - approved_learning
