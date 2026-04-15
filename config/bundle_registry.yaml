@@ -1,92 +1,401 @@
 bundles:
-  - name: meridian_model_core
+  - name: meridian_model_facade_lifecycle
+    priority_rank: 1
     priority: high
-    families: [theory, usage, updates]
-    domains: [model, auto]
-    files:
+    task_family_weights: {theory: 1.0, usage: 1.0, updates: 1.0, triage: 0.7}
+    package_domain_weights: {model: 1.0, analysis: 0.4, auto: 0.6}
+    anchor_files:
       - meridian/model/model.py
-      - meridian/model/context.py
-      - meridian/model/equations.py
+    primary_files:
+      - meridian/model/model.py
+      - meridian/model/model_test.py
+      - meridian/model/model_test_data.py
+      - meridian/model/model_test_data_test.py
+    supporting_tests:
+      - meridian/model/model_test.py
+      - meridian/model/model_test_data_test.py
+    neighboring_bundles: [meridian_model_math_core, meridian_analyzer_core]
+    expansion_hints:
+      - Expand to analyzer and transform bundles when model internals are touched.
+    optional_support_files: [meridian/constants.py, meridian/version.py]
+    notes: "Meridian model.py is a façade/orchestrator and lifecycle entrypoint, not the full theory surface."
+
+  - name: meridian_model_math_core
+    priority_rank: 2
+    priority: high
+    task_family_weights: {theory: 1.0, usage: 0.9, updates: 0.9}
+    package_domain_weights: {model: 1.0, auto: 0.7}
+    anchor_files: [meridian/model/equations.py, meridian/model/transformers.py]
+    primary_files:
       - meridian/model/adstock_hill.py
+      - meridian/model/transformers.py
+      - meridian/model/equations.py
+    supporting_tests:
+      - meridian/model/adstock_hill_test.py
+      - meridian/model/transformers_test.py
+      - meridian/model/equations_test.py
+    neighboring_bundles: [meridian_model_facade_lifecycle, meridian_input_data_contract]
+    expansion_hints:
+      - Include InputData contract checks for coordinate and channel assumptions.
+    optional_support_files: []
+    notes: "Mathematical transform and equation core used by model-object dependent aux code."
+
+  - name: meridian_model_contracts
+    priority_rank: 3
+    priority: high
+    task_family_weights: {theory: 0.9, usage: 0.8, updates: 0.9}
+    package_domain_weights: {model: 1.0, data: 0.5}
+    anchor_files: [meridian/model/context.py, meridian/model/spec.py]
+    primary_files:
+      - meridian/model/context.py
       - meridian/model/spec.py
       - meridian/model/prior_distribution.py
+      - meridian/model/media.py
+      - meridian/model/knots.py
+    supporting_tests:
+      - meridian/model/context_test.py
+      - meridian/model/spec_test.py
+      - meridian/model/prior_distribution_test.py
+      - meridian/model/media_test.py
+      - meridian/model/knots_test.py
+    neighboring_bundles: [meridian_model_facade_lifecycle, meridian_sampling_fitting]
+    expansion_hints: [Cross-check context and tensor contract assumptions.] 
+    optional_support_files: []
+    notes: "Contracts and priors used downstream by analyzer and model adapters."
+
+  - name: meridian_analyzer_core
+    priority_rank: 4
+    priority: high
+    task_family_weights: {theory: 1.0, usage: 1.0, updates: 1.0, triage: 1.0}
+    package_domain_weights: {analysis: 1.0, optimization: 0.7, auto: 0.6}
+    anchor_files: [meridian/analysis/analyzer.py]
+    primary_files:
+      - meridian/analysis/analyzer.py
+      - meridian/analysis/analyzer_test.py
+      - meridian/analysis/test_utils.py
+    supporting_tests:
+      - meridian/analysis/analyzer_test.py
+    neighboring_bundles: [meridian_model_facade_lifecycle, meridian_optimization_core, meridian_visualization_summary]
+    expansion_hints:
+      - Treat analyzer as a major downstream consumer of model internals.
+    optional_support_files: [meridian/analysis/test_utils.py]
+    notes: "Analyzer is a crucial downstream consumer and should not be treated as isolated analysis-only logic."
+
+  - name: meridian_sampling_fitting
+    priority_rank: 5
+    priority: medium
+    task_family_weights: {theory: 0.7, usage: 0.5, updates: 0.8}
+    package_domain_weights: {model: 0.9}
+    anchor_files: [meridian/model/prior_sampler.py, meridian/model/posterior_sampler.py]
+    primary_files:
+      - meridian/model/prior_sampler.py
       - meridian/model/posterior_sampler.py
-      - meridian/model/transformers.py
-      - meridian/model/*_test.py
-  - name: meridian_analysis_core
-    priority: high
-    families: [theory, usage, updates]
-    domains: [analysis, optimization, auto]
-    files:
-      - meridian/analysis/analyzer.py
-      - meridian/model/context.py
-      - meridian/model/equations.py
-      - meridian/model/adstock_hill.py
-      - meridian/model/transformers.py
-      - meridian/analysis/*_test.py
-  - name: meridian_optimization
-    priority: high
-    families: [usage, updates]
-    domains: [optimization, auto]
-    files:
-      - meridian/analysis/optimizer.py
-      - meridian/analysis/analyzer.py
-      - meridian/model/model.py
-  - name: meridian_data_loading
-    priority: low
-    families: [theory, usage]
-    domains: [data]
-    files: [meridian/data]
-  - name: meridian_eda
-    priority: low
-    families: [theory, usage]
-    domains: [eda]
-    files: [meridian/eda]
+    supporting_tests:
+      - meridian/model/prior_sampler_test.py
+      - meridian/model/posterior_sampler_test.py
+    neighboring_bundles: [meridian_model_contracts]
+    expansion_hints: []
+    optional_support_files: []
+    notes: "Sampling mechanics for fitting and posterior pathways."
+
+  - name: meridian_optimization_core
+    priority_rank: 6
+    priority: medium
+    task_family_weights: {usage: 0.9, updates: 0.9, theory: 0.5}
+    package_domain_weights: {optimization: 1.0, analysis: 0.7}
+    anchor_files: [meridian/analysis/optimizer.py]
+    primary_files: [meridian/analysis/optimizer.py, meridian/analysis/optimizer_test.py]
+    supporting_tests: [meridian/analysis/optimizer_test.py]
+    neighboring_bundles: [meridian_analyzer_core]
+    expansion_hints: [Optimizer changes should pull analyzer + model context.] 
+    optional_support_files: []
+    notes: "Downstream of analyzer and model internals."
+
   - name: meridian_visualization_summary
+    priority_rank: 7
+    priority: medium
+    task_family_weights: {usage: 0.8, updates: 0.6, theory: 0.5}
+    package_domain_weights: {analysis: 0.9}
+    anchor_files: [meridian/analysis/visualizer.py]
+    primary_files:
+      - meridian/analysis/visualizer.py
+      - meridian/analysis/summarizer.py
+      - meridian/analysis/summary_text.py
+    supporting_tests:
+      - meridian/analysis/visualizer_test.py
+      - meridian/analysis/summarizer_test.py
+    neighboring_bundles: [meridian_analyzer_core]
+    expansion_hints: [Attach for decomposition/contribution behavior.] 
+    optional_support_files: []
+    notes: "MediaSummary and summary output surfaces used by aux decomposition wrappers."
+
+  - name: meridian_input_data_contract
+    priority_rank: 8
+    priority: medium
+    task_family_weights: {usage: 0.8, updates: 0.8, theory: 0.8}
+    package_domain_weights: {data: 1.0, model: 0.7}
+    anchor_files: [meridian/data/input_data.py]
+    primary_files:
+      - meridian/data/input_data.py
+      - meridian/data/time_coordinates.py
+      - meridian/data/arg_builder.py
+      - meridian/data/validator.py
+    supporting_tests:
+      - meridian/data/input_data_test.py
+      - meridian/data/time_coordinates_test.py
+      - meridian/data/arg_builder_test.py
+      - meridian/data/validator_test.py
+    neighboring_bundles: [meridian_model_math_core, meridian_data_ingestion_builders]
+    expansion_hints: [Required for future-input and coordinate validation paths.] 
+    optional_support_files: [meridian/data/test_utils.py]
+    notes: "Canonical input-data contract bundle for coordinate and channel semantics."
+
+  - name: meridian_data_ingestion_builders
+    priority_rank: 9
     priority: low
-    families: [usage]
-    domains: [analysis]
-    files: [meridian/analysis]
+    task_family_weights: {usage: 0.7, updates: 0.7}
+    package_domain_weights: {data: 0.9}
+    anchor_files: [meridian/data/input_data_builder.py]
+    primary_files:
+      - meridian/data/input_data_builder.py
+      - meridian/data/data_frame_input_data_builder.py
+      - meridian/data/nd_array_input_data_builder.py
+      - meridian/data/load.py
+    supporting_tests:
+      - meridian/data/input_data_builder_test.py
+      - meridian/data/data_frame_input_data_builder_test.py
+      - meridian/data/nd_array_input_data_builder_test.py
+      - meridian/data/load_test.py
+    neighboring_bundles: [meridian_input_data_contract]
+    expansion_hints: []
+    optional_support_files: []
+    notes: "Data ingestion and builder pipelines."
+
+  - name: meridian_eda_subsystem
+    priority_rank: 10
+    priority: low
+    task_family_weights: {theory: 0.6, usage: 0.6, updates: 0.5}
+    package_domain_weights: {eda: 1.0, model: 0.4}
+    anchor_files: [meridian/model/eda/eda_engine.py]
+    primary_files:
+      - meridian/model/eda/constants.py
+      - meridian/model/eda/eda_spec.py
+      - meridian/model/eda/eda_outcome.py
+      - meridian/model/eda/eda_engine.py
+    supporting_tests:
+      - meridian/model/eda/eda_engine_test.py
+      - meridian/model/eda/eda_outcome_test.py
+    neighboring_bundles: [meridian_model_facade_lifecycle]
+    expansion_hints: []
+    optional_support_files: []
+    notes: "EDA lives under meridian/model/eda (corrected path fact)."
+
   - name: meridian_schema_serialization
+    priority_rank: 11
     priority: low
-    families: [updates]
-    domains: [schema]
-    files: [meridian/schema]
-  - name: meridian_mlflow
+    task_family_weights: {updates: 0.8, usage: 0.4}
+    package_domain_weights: {schema: 1.0}
+    anchor_files: [meridian/schema/serde/meridian_serde.py]
+    primary_files:
+      - meridian/schema/serde/meridian_serde.py
+      - meridian/schema/serde/marketing_data.py
+      - meridian/schema/serde/hyperparameters.py
+      - meridian/schema/serde/inference_data.py
+      - meridian/schema/serde/distribution.py
+      - meridian/schema/serde/function_registry.py
+      - meridian/schema/serde/eda_spec.py
+      - meridian/schema/serde/serde.py
+      - meridian/schema/serde/constants.py
+    supporting_tests:
+      - meridian/schema/serde/meridian_serde_test.py
+      - meridian/schema/serde/marketing_data_test.py
+      - meridian/schema/serde/inference_data_test.py
+      - meridian/schema/serde/function_registry_test.py
+      - meridian/schema/serde/eda_spec_test.py
+    neighboring_bundles: [meridian_schema_processors_exports]
+    expansion_hints: []
+    optional_support_files: [meridian/schema/serde/test_data.py]
+    notes: "Schema serialization and round-trip bundle."
+
+  - name: meridian_schema_processors_exports
+    priority_rank: 12
     priority: low
-    families: [usage, updates]
-    domains: [mlflow]
-    files: [meridian/mlflow]
-  - name: meridian_scenario_planner
+    task_family_weights: {updates: 0.8, usage: 0.4}
+    package_domain_weights: {schema: 1.0}
+    anchor_files: [meridian/schema/processors/model_processor.py]
+    primary_files:
+      - meridian/schema/processors/model_processor.py
+      - meridian/schema/processors/model_kernel_processor.py
+      - meridian/schema/processors/model_fit_processor.py
+      - meridian/schema/processors/marketing_processor.py
+      - meridian/schema/processors/budget_optimization_processor.py
+      - meridian/schema/processors/reach_frequency_optimization_processor.py
+      - meridian/schema/processors/common.py
+      - meridian/schema/model_consumer.py
+      - meridian/schema/mmm_proto_generator.py
+      - meridian/schema/utils/date_range_bucketing.py
+      - meridian/schema/utils/proto_enum_converter.py
+      - meridian/schema/utils/time_record.py
+    supporting_tests: []
+    neighboring_bundles: [meridian_schema_serialization]
+    expansion_hints: []
+    optional_support_files: [schema.py]
+    notes: "Schema processors and export workflows."
+
+  - name: meridian_analysis_review_qa
+    priority_rank: 13
     priority: low
-    families: [usage]
-    domains: [scenario_planner]
-    files: [meridian/scenario_planner]
-  - name: aux_control_contribution_hotspot
+    task_family_weights: {updates: 0.7, usage: 0.4}
+    package_domain_weights: {analysis: 0.7}
+    anchor_files: [meridian/analysis/review/reviewer.py]
+    primary_files:
+      - meridian/analysis/review/checks.py
+      - meridian/analysis/review/configs.py
+      - meridian/analysis/review/constants.py
+      - meridian/analysis/review/results.py
+      - meridian/analysis/review/reviewer.py
+    supporting_tests: []
+    neighboring_bundles: [meridian_analyzer_core]
+    expansion_hints: []
+    optional_support_files: []
+    notes: "Analysis review and QA layer."
+
+  - name: meridian_mlflow_integration
+    priority_rank: 14
+    priority: low
+    task_family_weights: {updates: 0.5, usage: 0.4}
+    package_domain_weights: {mlflow: 1.0}
+    anchor_files: [meridian/mlflow/autolog.py]
+    primary_files: [meridian/mlflow/autolog.py, meridian/mlflow/autolog_test.py]
+    supporting_tests: [meridian/mlflow/autolog_test.py]
+    neighboring_bundles: []
+    expansion_hints: []
+    optional_support_files: [meridian/backend/__init__.py, meridian/backend/config.py, meridian/templates/formatter.py]
+    notes: "MLflow integration surfaces."
+
+  - name: meridian_scenario_planner_support
+    priority_rank: 15
+    priority: low
+    task_family_weights: {usage: 0.4}
+    package_domain_weights: {scenario_planner: 1.0}
+    anchor_files: [scenarioplanner/mmm_ui_proto_generator.py]
+    primary_files: [scenarioplanner/mmm_ui_proto_generator.py]
+    supporting_tests: []
+    neighboring_bundles: [meridian_schema_processors_exports]
+    expansion_hints: []
+    optional_support_files: []
+    notes: "Scenario planner is top-level scenarioplanner/ (corrected path fact, not meridian/scenario_planner)."
+
+  - name: aux_analyzer_compat_hotspots
+    priority_rank: 20
     priority: high
-    families: [updates, usage, theory]
-    domains: [analysis, optimization, auto]
-    files:
-      - meridian_aux/src/meridian_aux/contribution/control_contribution.py
-      - meridian_aux/tests/test_contribution_control_contribution.py
-      - meridian/analysis/analyzer.py
-      - meridian/model/model.py
-  - name: aux_predictive_extension
+    hotspot_tier: tier_1
+    default_dependency_modes: [compat_shim]
+    task_family_weights: {updates: 1.0, usage: 0.9, theory: 0.7}
+    package_domain_weights: {analysis: 1.0, optimization: 0.7, auto: 0.6}
+    anchor_files:
+      - src/meridian_aux/contribution/control_contribution.py
+      - src/meridian_aux/dashboard/nordic_client.py
+    primary_files:
+      - src/meridian_aux/contribution/control_contribution.py
+      - src/meridian_aux/dashboard/nordic_client.py
+    supporting_tests:
+      - tests/test_contribution_control_contribution.py
+      - tests/test_dashboard_nordic_client.py
+    neighboring_bundles: [meridian_analyzer_core, meridian_model_facade_lifecycle]
+    expansion_hints: [Expand through analyzer + model + context surfaces.] 
+    optional_support_files: []
+    notes: "Explicit compatibility shims bridging aux code to Analyzer-oriented internals."
+
+  - name: aux_model_forward_pass_hotspots
+    priority_rank: 21
     priority: high
-    families: [usage, updates]
-    domains: [model, data, auto]
-    files:
-      - meridian_aux/src/meridian_aux/predict/predict.py
-      - meridian_aux/tests/test_predict_predict.py
-      - meridian/model/model.py
-  - name: aux_analysis_dependent
+    hotspot_tier: tier_1
+    default_dependency_modes: [semi_internal]
+    task_family_weights: {updates: 1.0, usage: 0.9, theory: 0.6}
+    package_domain_weights: {model: 1.0, data: 0.8}
+    anchor_files:
+      - src/meridian_aux/predict/predict.py
+      - src/meridian_aux/charts/transformed.py
+      - src/meridian_aux/diagnostics/multicollinearity.py
+    primary_files:
+      - src/meridian_aux/predict/predict.py
+      - src/meridian_aux/charts/transformed.py
+      - src/meridian_aux/diagnostics/multicollinearity.py
+    supporting_tests:
+      - tests/test_predict_predict.py
+      - tests/test_charts_transformed.py
+      - tests/test_diagnostics_multicollinearity.py
+    neighboring_bundles: [meridian_model_math_core, meridian_input_data_contract]
+    expansion_hints: [Attach adstock_hill, transformers, equations, and InputData surfaces.] 
+    optional_support_files: []
+    notes: "Forward-pass hotspots coupled to Meridian model object and transform internals."
+
+  - name: aux_analysis_output_wrappers
+    priority_rank: 22
+    priority: medium
+    hotspot_tier: tier_2
+    default_dependency_modes: [publicish_output]
+    task_family_weights: {usage: 0.8, updates: 0.8}
+    package_domain_weights: {analysis: 0.8, optimization: 0.7, data: 0.7}
+    anchor_files:
+      - src/meridian_aux/optimization/roi.py
+      - src/meridian_aux/diagnostics/residuals.py
+    primary_files:
+      - src/meridian_aux/optimization/roi.py
+      - src/meridian_aux/diagnostics/residuals.py
+      - src/meridian_aux/data/actuals_vs_fitted.py
+      - src/meridian_aux/data/curves.py
+    supporting_tests:
+      - tests/test_optimization_roi.py
+      - tests/test_diagnostics_residuals.py
+      - tests/test_data_actuals_vs_fitted.py
+      - tests/test_data_curves.py
+    neighboring_bundles: [meridian_analyzer_core, meridian_visualization_summary]
+    expansion_hints: [Usually expand from Analyzer output schema and summary methods.] 
+    optional_support_files: []
+    notes: "Wrappers around analysis output contracts with moderate drift risk."
+
+  - name: aux_decomposition_visualizer_bridge
+    priority_rank: 23
     priority: high
-    families: [updates, usage]
-    domains: [analysis, optimization, data, auto]
-    files:
-      - meridian_aux/src/meridian_aux/optimization/roi.py
-      - meridian_aux/src/meridian_aux/diagnostics/residuals.py
-      - meridian_aux/src/meridian_aux/data/actuals_vs_fitted.py
-      - meridian_aux/src/meridian_aux/data/curves.py
-      - meridian_aux/src/meridian_aux/nest/nest.py
-      - meridian_aux/src/meridian_aux/charts/transformed.py
+    hotspot_tier: tier_1
+    default_dependency_modes: [publicish_output, semi_internal]
+    task_family_weights: {usage: 0.9, updates: 0.9, theory: 0.5}
+    package_domain_weights: {analysis: 0.9}
+    anchor_files: [src/meridian_aux/nest/nest.py]
+    primary_files:
+      - src/meridian_aux/nest/nest.py
+      - src/meridian_aux/contribution/media_contribution.py
+    supporting_tests:
+      - tests/test_nest_nest.py
+      - tests/test_contribution_media_contribution.py
+    neighboring_bundles: [meridian_visualization_summary, meridian_analyzer_core]
+    expansion_hints: [nest.py is under-tested and should receive tier-1 treatment.] 
+    optional_support_files: []
+    notes: "Decomposition / visualizer bridge; includes under-tested nest.py hotspot."
+
+  - name: aux_schema_posterior_convention_dependents
+    priority_rank: 24
+    priority: medium
+    hotspot_tier: tier_3
+    default_dependency_modes: [schema_convention, duck_typed]
+    task_family_weights: {usage: 0.7, updates: 0.7, theory: 0.4}
+    package_domain_weights: {schema: 0.8, model: 0.6}
+    anchor_files:
+      - src/meridian_aux/study/iterate.py
+      - src/meridian_aux/charts/coefficients.py
+    primary_files:
+      - src/meridian_aux/study/iterate.py
+      - src/meridian_aux/charts/coefficients.py
+      - src/meridian_aux/diagnostics/tstats.py
+      - src/meridian_aux/diagnostics/mass.py
+    supporting_tests:
+      - tests/test_study_iterate.py
+      - tests/test_charts_coefficients.py
+      - tests/test_diagnostics_tstats.py
+      - tests/test_diagnostics_mass.py
+    neighboring_bundles: [meridian_schema_serialization]
+    expansion_hints: [Convention and duck-typed dependencies can hide schema drift.] 
+    optional_support_files: []
+    notes: "Schema/pseudo-contract consumers; usually convention-coupled rather than strict API-coupled."
