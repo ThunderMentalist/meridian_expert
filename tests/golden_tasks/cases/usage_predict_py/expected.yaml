@@ -1,0 +1,5 @@
+expected_family: usage
+expected_route: model_object_based_aux
+expected_anchors:
+- meridian/model/model.py
+expects_clarification: false

@@ -1,0 +1,5 @@
+expected_family: theory
+expected_route: meridian_model_core
+expected_anchors:
+- meridian/model/model.py
+expects_clarification: false
