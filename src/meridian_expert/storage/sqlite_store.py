@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from meridian_expert.enums import TaskState
+from meridian_expert.models.artifact import ArtifactRecord
 from meridian_expert.models.review import ReviewItem
 from meridian_expert.models.task import TaskRecord
 
@@ -30,7 +31,18 @@ class SQLiteStore:
         );
         create table if not exists task_cycles (task_id text, cycle_id text, primary key(task_id, cycle_id));
         create table if not exists deliveries (task_id text, delivery_id text, path text, primary key(task_id, delivery_id));
-        create table if not exists artifacts (task_id text, cycle_id text, kind text, path text, lifecycle_stage text);
+        create table if not exists artifacts (
+          artifact_kind text,
+          task_id text not null,
+          cycle_id text,
+          delivery_id text,
+          relative_path text not null,
+          lifecycle_stage text not null,
+          reuse_policy text not null,
+          eligible_for_learning integer not null,
+          eligible_for_golden_promotion integer not null,
+          created_at text not null
+        );
         create table if not exists events (task_id text, event_ts text, event_type text, payload text);
         create table if not exists review_items (review_id text primary key, task_id text, cycle_id text, kind text, status text, created_at text);
         create table if not exists learning_candidates (candidate_id text primary key, task_id text, status text, category text);
@@ -38,7 +50,27 @@ class SQLiteStore:
         create table if not exists compatibility_notes (note_id text primary key, task_id text, status text);
         create table if not exists exemplar_candidates (candidate_id text primary key, task_id text, status text);
         """)
+        self._migrate_artifacts_table()
         self.conn.commit()
+
+    def _migrate_artifacts_table(self) -> None:
+        rows = self.conn.execute("pragma table_info(artifacts)").fetchall()
+        existing = {row[1] for row in rows}
+        required: dict[str, str] = {
+            "artifact_kind": "text",
+            "task_id": "text",
+            "cycle_id": "text",
+            "delivery_id": "text",
+            "relative_path": "text",
+            "lifecycle_stage": "text",
+            "reuse_policy": "text",
+            "eligible_for_learning": "integer",
+            "eligible_for_golden_promotion": "integer",
+            "created_at": "text",
+        }
+        for column, column_type in required.items():
+            if column not in existing:
+                self.conn.execute(f"alter table artifacts add column {column} {column_type}")
 
     def insert_task(self, rec: TaskRecord) -> None:
         self.conn.execute(
@@ -46,6 +78,30 @@ class SQLiteStore:
             (rec.task_id, rec.state.value, rec.family.value, rec.created_at.isoformat(), rec.current_cycle, rec.parent_task_id, rec.related_task_id, rec.source_task_id),
         )
         self.conn.execute("insert or ignore into task_cycles values (?,?)", (rec.task_id, rec.current_cycle))
+        self.conn.commit()
+
+    def insert_artifact(self, rec: ArtifactRecord) -> None:
+        self.conn.execute(
+            """
+            insert into artifacts (
+              artifact_kind, task_id, cycle_id, delivery_id, relative_path,
+              lifecycle_stage, reuse_policy, eligible_for_learning,
+              eligible_for_golden_promotion, created_at
+            ) values (?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                rec.artifact_kind,
+                rec.task_id,
+                rec.cycle_id,
+                rec.delivery_id,
+                rec.relative_path,
+                rec.lifecycle_stage,
+                rec.reuse_policy,
+                int(rec.eligible_for_learning),
+                int(rec.eligible_for_golden_promotion),
+                rec.created_at.isoformat(),
+            ),
+        )
         self.conn.commit()
 
     def get_task(self, task_id: str) -> TaskRecord | None:

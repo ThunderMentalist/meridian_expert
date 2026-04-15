@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -11,15 +12,16 @@ from rich import print
 
 from meridian_expert.enums import TaskState
 from meridian_expert.ids import cycle_id, task_id
+from meridian_expert.investigation.bundle_registry import BundleRegistry
+from meridian_expert.investigation.compatibility_checker import CompatibilityChecker
 from meridian_expert.models.task import TaskRecord
+from meridian_expert.orchestration.lifecycle import mode_for
 from meridian_expert.orchestration.runner import deliver, run_to_gate
 from meridian_expert.orchestration.triage import triage_from_text
 from meridian_expert.settings import resolve_paths
-from meridian_expert.storage.repositories import has_git_repo
+from meridian_expert.storage.repositories import resolve_repositories
 from meridian_expert.storage.sqlite_store import SQLiteStore
 from meridian_expert.storage.workspace import WorkspaceManager
-from meridian_expert.investigation.bundle_registry import BundleRegistry
-from meridian_expert.investigation.compatibility_checker import CompatibilityChecker
 
 app = typer.Typer(help="Meridian expert CLI")
 task_app = typer.Typer()
@@ -30,6 +32,12 @@ app.add_typer(task_app, name="task")
 app.add_typer(review_app, name="review")
 app.add_typer(compat_app, name="compat")
 app.add_typer(bundle_app, name="bundle")
+
+
+REPO_REQUIREMENTS = {
+    "meridian": "required_for_real_investigation",
+    "meridian_aux": "required_for_real_investigation",
+}
 
 
 def _store_workspace() -> tuple[SQLiteStore, WorkspaceManager]:
@@ -44,15 +52,46 @@ def _store_workspace() -> tuple[SQLiteStore, WorkspaceManager]:
 @app.command()
 def doctor() -> None:
     paths = resolve_paths()
+    repos = resolve_repositories(
+        {
+            "meridian": paths.meridian_repo_path,
+            "meridian_aux": paths.meridian_aux_repo_path,
+        }
+    )
+    repo_checks: dict[str, object] = {}
+    missing_required = False
+    for repo_name, status in repos.items():
+        required_for_real_run = REPO_REQUIREMENTS[repo_name] == "required_for_real_investigation"
+        if required_for_real_run and not status.exists:
+            missing_required = True
+        repo_checks[repo_name] = {
+            "configured_path": str(status.configured_path) if status.configured_path else None,
+            "exists": status.exists,
+            "source_kind": status.source_kind,
+            "git_available": status.git_available,
+            "root_path": str(status.root_path) if status.root_path else None,
+            "required_for_real_investigation": required_for_real_run,
+            "notes": status.notes,
+        }
+
     checks = {
         "workspace_exists": paths.workspace_path.exists(),
-        "meridian_exists": paths.meridian_repo_path.exists(),
-        "meridian_aux_exists": paths.meridian_aux_repo_path.exists(),
-        "meridian_git": has_git_repo(paths.meridian_repo_path),
-        "meridian_aux_git": has_git_repo(paths.meridian_aux_repo_path),
-        "openai_key_present": bool(__import__('os').getenv("OPENAI_API_KEY")),
+        "openai_key_present": bool(os.getenv("OPENAI_API_KEY")),
+        "repositories": repo_checks,
+        "real_investigation_ready": not missing_required,
+        "real_investigation_message": (
+            "Sibling repositories are configured for local real-repo investigation runs."
+            if not missing_required
+            else "One or more required sibling repositories are missing; configure local directory paths before running real investigations."
+        ),
     }
-    for cfg in ["config/model_profiles.yaml", "config/lifecycle_modes.yaml", "config/task_family_policies.yaml", "config/bundle_registry.yaml", "config/compatibility_manifest.yaml"]:
+    for cfg in [
+        "config/model_profiles.yaml",
+        "config/lifecycle_modes.yaml",
+        "config/task_family_policies.yaml",
+        "config/bundle_registry.yaml",
+        "config/compatibility_manifest.yaml",
+    ]:
         try:
             yaml.safe_load(Path(cfg).read_text(encoding="utf-8"))
             checks[f"parse_{cfg}"] = True
@@ -73,7 +112,10 @@ def create_task(task_md: Path, attachment: list[Path] = typer.Option(None), rela
         shutil.copy(a, tdir / "input/attachments" / a.name)
     text = (tdir / "input/task.md").read_text(encoding="utf-8")
     brief = triage_from_text(text)
-    (tdir / f"cycles/{cid}/triage/task_brief.md").write_text(brief.model_dump_json(indent=2), encoding="utf-8")
+    lifecycle_stage = mode_for(brief.task_family.value)
+    task_brief_path = ws.artifact_paths(tid, cid, lifecycle_stage=lifecycle_stage).task_brief()
+    task_brief_path.parent.mkdir(parents=True, exist_ok=True)
+    task_brief_path.write_text(brief.model_dump_json(indent=2), encoding="utf-8")
     meta = {"task_id": tid, "current_cycle": cid, "related_task_id": related_task_id, "parent_task_id": parent_task_id}
     (tdir / "meta.yaml").write_text(yaml.safe_dump(meta), encoding="utf-8")
     store.insert_task(TaskRecord(task_id=tid, state=TaskState.TRIAGED, family=brief.task_family, created_at=datetime.utcnow(), current_cycle=cid, parent_task_id=parent_task_id, related_task_id=related_task_id))
@@ -87,9 +129,11 @@ def show_task(task_id: str) -> None:
     if not rec:
         raise typer.Exit(1)
     print(rec.model_dump_json(indent=2))
-    brief = ws.task_dir(task_id) / f"cycles/{rec.current_cycle}/triage/task_brief.md"
-    if brief.exists():
-        print(brief.read_text(encoding="utf-8"))
+    base = ws.task_dir(task_id) / f"cycles/{rec.current_cycle}"
+    for brief in [base / "triage/task_brief.md", base / "prototype/triage/task_brief.prototype.md"]:
+        if brief.exists():
+            print(brief.read_text(encoding="utf-8"))
+            break
 
 
 @task_app.command("run")
@@ -99,9 +143,10 @@ def run_task(task_id: str, to_gate: bool = typer.Option(True, "--to-gate/--throu
     if not rec:
         raise typer.Exit(1)
     brief = triage_from_text((ws.task_dir(task_id) / "input/task.md").read_text(encoding="utf-8"))
-    run_to_gate(rec, store, ws, brief, require_review=True)
+    lifecycle_stage = mode_for(brief.task_family.value)
+    run_to_gate(rec, store, ws, brief, require_review=True, lifecycle_stage=lifecycle_stage)
     if not to_gate:
-        out = deliver(rec, store, ws, prototype=True)
+        out = deliver(rec, store, ws, prototype=lifecycle_stage == "prototype")
         print(out)
 
 
