@@ -1,1 +1,0 @@
-Task case: usage_existing_object_snippet
