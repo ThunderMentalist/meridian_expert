@@ -23,6 +23,20 @@ class TaskBrief(BaseModel):
     appendix_requested: bool = False
     unknowns: list[str] = Field(default_factory=list)
 
+    needs_clarification: bool = False
+    clarification_questions: list[str] = Field(default_factory=list)
+    family_confidence: float | None = None
+    domain_confidence: float | None = None
+    suggested_bundles: list[str] = Field(default_factory=list)
+    anchor_concepts: list[str] = Field(default_factory=list)
+    candidate_anchor_files: list[str] = Field(default_factory=list)
+    cross_repo_route: str | None = None
+    hotspot_tier: str | None = None
+    dependency_mode: str | None = None
+    is_compatibility_shim: bool = False
+    under_tested_risk: bool = False
+    attachment_requirements: list[str] = Field(default_factory=list)
+
 
 class TaskRecord(BaseModel):
     task_id: str
