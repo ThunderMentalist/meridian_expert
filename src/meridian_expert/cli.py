@@ -17,7 +17,7 @@ from meridian_expert.investigation.compatibility_checker import CompatibilityChe
 from meridian_expert.models.task import TaskRecord
 from meridian_expert.orchestration.lifecycle import mode_for
 from meridian_expert.orchestration.runner import deliver, run_to_gate
-from meridian_expert.orchestration.triage import triage_from_text
+from meridian_expert.orchestration.triage import build_clarification_markdown, triage_from_text
 from meridian_expert.settings import resolve_paths
 from meridian_expert.storage.repositories import resolve_repositories
 from meridian_expert.storage.sqlite_store import SQLiteStore
@@ -118,7 +118,12 @@ def create_task(task_md: Path, attachment: list[Path] = typer.Option(None), rela
     task_brief_path.write_text(brief.model_dump_json(indent=2), encoding="utf-8")
     meta = {"task_id": tid, "current_cycle": cid, "related_task_id": related_task_id, "parent_task_id": parent_task_id}
     (tdir / "meta.yaml").write_text(yaml.safe_dump(meta), encoding="utf-8")
-    store.insert_task(TaskRecord(task_id=tid, state=TaskState.TRIAGED, family=brief.task_family, created_at=datetime.utcnow(), current_cycle=cid, parent_task_id=parent_task_id, related_task_id=related_task_id))
+    initial_state = TaskState.NEEDS_CLARIFICATION if brief.needs_clarification else TaskState.TRIAGED
+    if brief.needs_clarification:
+        clarification_path = ws.artifact_paths(tid, cid, lifecycle_stage=lifecycle_stage).clarification_request()
+        clarification_path.parent.mkdir(parents=True, exist_ok=True)
+        clarification_path.write_text(build_clarification_markdown(brief), encoding="utf-8")
+    store.insert_task(TaskRecord(task_id=tid, state=initial_state, family=brief.task_family, created_at=datetime.utcnow(), current_cycle=cid, parent_task_id=parent_task_id, related_task_id=related_task_id))
     print(tid)
 
 
@@ -152,7 +157,35 @@ def run_task(task_id: str, to_gate: bool = typer.Option(True, "--to-gate/--throu
 
 @task_app.command("clarify")
 def clarify(task_id: str, message: str) -> None:
-    _store_workspace()
+    store, ws = _store_workspace()
+    rec = store.get_task(task_id)
+    if not rec:
+        raise typer.Exit(1)
+
+    input_path = ws.task_dir(task_id) / "input/task.md"
+    text = input_path.read_text(encoding="utf-8")
+    clarified_text = f"{text.rstrip()}\n\n## Clarification response\n{message.strip()}\n"
+
+    brief = triage_from_text(clarified_text)
+    lifecycle_stage = mode_for(brief.task_family.value)
+    paths = ws.artifact_paths(task_id, rec.current_cycle, lifecycle_stage=lifecycle_stage)
+
+    clarifications_path = paths.clarifications()
+    clarifications_path.parent.mkdir(parents=True, exist_ok=True)
+    clarifications_path.write_text(message.strip() + "\n", encoding="utf-8")
+
+    task_brief_path = paths.task_brief()
+    task_brief_path.parent.mkdir(parents=True, exist_ok=True)
+    task_brief_path.write_text(brief.model_dump_json(indent=2), encoding="utf-8")
+
+    if brief.needs_clarification:
+        clarification_request_path = paths.clarification_request()
+        clarification_request_path.parent.mkdir(parents=True, exist_ok=True)
+        clarification_request_path.write_text(build_clarification_markdown(brief), encoding="utf-8")
+        store.update_state(task_id, TaskState.NEEDS_CLARIFICATION)
+    else:
+        store.update_state(task_id, TaskState.TRIAGED)
+
     print(f"Clarification recorded for {task_id}: {message}")
 
 
