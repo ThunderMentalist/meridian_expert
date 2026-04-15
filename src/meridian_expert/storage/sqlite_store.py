@@ -125,7 +125,7 @@ class SQLiteStore:
 
     def create_review_item(self, item: ReviewItem) -> None:
         self.conn.execute(
-            "insert into review_items values (?,?,?,?,?,?)",
+            "insert or ignore into review_items values (?,?,?,?,?,?)",
             (item.review_id, item.task_id, item.cycle_id, item.kind, item.status, item.created_at.isoformat()),
         )
         self.conn.commit()

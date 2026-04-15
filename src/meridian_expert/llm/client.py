@@ -155,8 +155,10 @@ class DeterministicFakeBackend:
                 fields,
                 {
                     "approved": approved,
+                    "status": "approve" if approved else "revise",
                     "issues": [] if approved else ["Missing evidence or empty answer."],
                     "notes": "Deterministic reviewer decision.",
+                    "suggested_edits": [] if approved else ["Add concrete evidence references."],
                 },
             )
         else:
