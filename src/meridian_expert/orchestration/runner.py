@@ -23,7 +23,7 @@ def run_to_gate(task, store, workspace, brief, require_review: bool = True, life
         evidence.extend(from_bundle(b))
     ev_path = paths.evidence_bundle()
     ev_path.parent.mkdir(parents=True, exist_ok=True)
-    ev_path.write_text("\n".join([f"- {e.path} ({e.bundle})" for e in evidence]), encoding="utf-8")
+    ev_path.write_text("\n".join([f"- {e.path} ({e.rationale})" for e in evidence]), encoding="utf-8")
     store.insert_artifact(
         ArtifactRecord.for_stage(
             artifact_kind="evidence_bundle",
