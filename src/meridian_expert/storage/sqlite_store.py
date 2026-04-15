@@ -51,6 +51,7 @@ class SQLiteStore:
         create table if not exists exemplar_candidates (candidate_id text primary key, task_id text, status text);
         """)
         self._migrate_artifacts_table()
+        self.conn.execute("create unique index if not exists idx_review_item_equiv on review_items(task_id, cycle_id, kind)")
         self.conn.commit()
 
     def _migrate_artifacts_table(self) -> None:
@@ -130,9 +131,78 @@ class SQLiteStore:
         )
         self.conn.commit()
 
-    def list_review_items(self, status: str = "pending") -> list[sqlite3.Row]:
+    def list_review_items(self, status: str | None = "pending") -> list[sqlite3.Row]:
+        if status is None:
+            return list(self.conn.execute("select * from review_items order by created_at").fetchall())
         return list(self.conn.execute("select * from review_items where status=? order by created_at", (status,)).fetchall())
+
+    def list_review_items_for_task(self, task_id: str, cycle_id: str, status: str | None = None) -> list[sqlite3.Row]:
+        if status is None:
+            return list(
+                self.conn.execute(
+                    "select * from review_items where task_id=? and cycle_id=? order by created_at",
+                    (task_id, cycle_id),
+                ).fetchall()
+            )
+        return list(
+            self.conn.execute(
+                "select * from review_items where task_id=? and cycle_id=? and status=? order by created_at",
+                (task_id, cycle_id, status),
+            ).fetchall()
+        )
 
     def set_review_status(self, review_id: str, status: str) -> None:
         self.conn.execute("update review_items set status=? where review_id=?", (status, review_id))
+        self.conn.commit()
+
+    def get_review_item(self, review_id: str) -> sqlite3.Row | None:
+        return self.conn.execute("select * from review_items where review_id=?", (review_id,)).fetchone()
+
+    def add_event(self, task_id: str, event_type: str, payload: str) -> None:
+        self.conn.execute(
+            "insert into events values (?,?,?,?)",
+            (task_id, datetime.utcnow().isoformat(), event_type, payload),
+        )
+        self.conn.commit()
+
+    def latest_delivery_manifest(self, task_id: str) -> sqlite3.Row | None:
+        return self.conn.execute(
+            """
+            select * from artifacts
+            where task_id=? and artifact_kind='delivery_manifest'
+            order by created_at desc limit 1
+            """,
+            (task_id,),
+        ).fetchone()
+
+    def create_learning_candidate(self, candidate_id: str, task_id: str, category: str = "candidate_learning") -> None:
+        self.conn.execute(
+            "insert or ignore into learning_candidates values (?,?,?,?)",
+            (candidate_id, task_id, "pending", category),
+        )
+        self.conn.commit()
+
+    def list_learning_candidates(self, status: str | None = "pending") -> list[sqlite3.Row]:
+        if status is None:
+            return list(self.conn.execute("select * from learning_candidates order by candidate_id").fetchall())
+        return list(self.conn.execute("select * from learning_candidates where status=? order by candidate_id", (status,)).fetchall())
+
+    def set_learning_candidate_status(self, candidate_id: str, status: str) -> None:
+        self.conn.execute("update learning_candidates set status=? where candidate_id=?", (status, candidate_id))
+        self.conn.commit()
+
+    def create_exemplar_candidate(self, candidate_id: str, task_id: str) -> None:
+        self.conn.execute(
+            "insert or ignore into exemplar_candidates values (?,?,?)",
+            (candidate_id, task_id, "pending"),
+        )
+        self.conn.commit()
+
+    def list_exemplar_candidates(self, status: str | None = "pending") -> list[sqlite3.Row]:
+        if status is None:
+            return list(self.conn.execute("select * from exemplar_candidates order by candidate_id").fetchall())
+        return list(self.conn.execute("select * from exemplar_candidates where status=? order by candidate_id", (status,)).fetchall())
+
+    def set_exemplar_candidate_status(self, candidate_id: str, status: str) -> None:
+        self.conn.execute("update exemplar_candidates set status=? where candidate_id=?", (status, candidate_id))
         self.conn.commit()
