@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 from datetime import UTC, datetime
 from typing import Literal
@@ -15,6 +16,7 @@ from meridian_expert.logging_utils import append_jsonl
 from meridian_expert.models.artifact import ArtifactRecord
 from meridian_expert.orchestration.review_queue import make_item
 from meridian_expert.orchestration.router import route_family
+from meridian_expert.task_families.usage import generate_answer as generate_usage_answer, load_attachment_texts
 from meridian_expert.settings import resolve_paths
 from meridian_expert.storage.repositories import resolve_repositories
 
@@ -52,6 +54,41 @@ def _artifact_stage(prototype: bool) -> str:
 
 def _requires_real_investigation(brief) -> bool:
     return not brief.needs_clarification
+
+
+def _parse_evidence_markdown(evidence_markdown: str):
+    from meridian_expert.models.evidence import EvidenceItem, EvidencePack
+
+    items: list[EvidenceItem] = []
+    for line in evidence_markdown.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("- "):
+            continue
+        payload = stripped.removeprefix("- ")
+        path = payload.split(" (", 1)[0].strip()
+        rationale = payload.split("(", 1)[1].rstrip(")") if "(" in payload and payload.endswith(")") else "Evidence from investigation bundle."
+        if not path:
+            continue
+        items.append(
+            EvidenceItem(
+                repo_name="meridian_aux" if path.startswith("src/meridian_aux/") else "meridian",
+                path=path,
+                rationale=rationale,
+                authority_rank=5,
+                significance=0.5,
+                direct=True,
+            )
+        )
+    anchors = [item.path for item in items[:2]]
+    return EvidencePack(anchor_files=anchors, items=items)
+
+
+def _validated_python_snippets(snippets: list[str]) -> list[str]:
+    validated: list[str] = []
+    for snippet in snippets:
+        ast.parse(snippet)
+        validated.append(snippet)
+    return validated
 
 
 def run_triage_stage(task, store, workspace, brief, *, lifecycle_stage: str, require_review: bool) -> bool:
@@ -142,8 +179,16 @@ def run_investigation_stage(task, store, workspace, brief, *, lifecycle_stage: s
     return True, evidence_md
 
 
-def run_family_stage(task, brief, evidence_markdown: str, *, llm_client: LLMClient, stream: bool) -> DraftOutput:
+def run_family_stage(task, brief, evidence_markdown: str, workspace, *, llm_client: LLMClient, stream: bool) -> DraftOutput:
     family = route_family(explicit=None, triaged=TaskFamily(task.family), builder_enabled=False)
+
+    if family == TaskFamily.USAGE:
+        evidence_pack = _parse_evidence_markdown(evidence_markdown)
+        attachments = load_attachment_texts(workspace.task_dir(task.task_id) / "input" / "attachments")
+        answer, snippets = generate_usage_answer(brief.goal, evidence_pack, attachment_texts=attachments)
+        appendix = "## Appendix\n\n- Deterministic prototype appendix." if brief.appendix_requested else None
+        return DraftOutput(answer_markdown=answer, appendix_markdown=appendix, snippets=snippets)
+
     prompt = load_prompt(family.value)
     input_text = f"Goal:\n{brief.goal}\n\nEvidence:\n{evidence_markdown}\n"
     answer = llm_client.generate_text(
@@ -154,7 +199,7 @@ def run_family_stage(task, brief, evidence_markdown: str, *, llm_client: LLMClie
         metadata={"task_id": task.task_id, "cycle_id": task.current_cycle, "stage": "family", "prompt_spec_name": family.value},
     )
     snippets: list[str] = []
-    if family == TaskFamily.USAGE or brief.snippets_allowed:
+    if brief.snippets_allowed:
         snippets.append("# snippet\nprint('prototype snippet')")
     appendix = "## Appendix\n\n- Deterministic prototype appendix." if brief.appendix_requested else None
     return DraftOutput(answer_markdown=answer, appendix_markdown=appendix, snippets=snippets)
@@ -230,8 +275,8 @@ def persist_draft_stage(task, store, workspace, draft: DraftOutput, *, lifecycle
             )
         )
 
-    for idx, snippet in enumerate(draft.snippets, start=1):
-        snippet_path = answer.parent / "snippets" / f"snippet_{idx}.py"
+    for idx, snippet in enumerate(_validated_python_snippets(draft.snippets), start=1):
+        snippet_path = answer.parent / "snippets" / f"example_{idx:02d}.py"
         snippet_path.parent.mkdir(parents=True, exist_ok=True)
         snippet_path.write_text(snippet + "\n", encoding="utf-8")
         store.insert_artifact(
@@ -269,8 +314,8 @@ def deliver_stage(task, store, workspace, draft: DraftOutput, *, lifecycle_stage
         )
 
     snippet_files: list[str] = []
-    for idx, snippet in enumerate(draft.snippets, start=1):
-        snippet_path = answer_path.parent / f"snippet_{idx}.prototype.py" if lifecycle_stage == "prototype" else answer_path.parent / f"snippet_{idx}.py"
+    for idx, snippet in enumerate(_validated_python_snippets(draft.snippets), start=1):
+        snippet_path = answer_path.parent / (f"example_{idx:02d}.prototype.py" if lifecycle_stage == "prototype" else f"example_{idx:02d}.py")
         snippet_path.write_text(snippet + "\n", encoding="utf-8")
         snippet_files.append(snippet_path.name)
         store.insert_artifact(
@@ -335,7 +380,7 @@ def run_task(task, store, workspace, brief, *, llm_client: LLMClient | None = No
     if not can_investigate:
         return None
 
-    draft = run_family_stage(task, brief, evidence, llm_client=llm_client, stream=options.stream)
+    draft = run_family_stage(task, brief, evidence, workspace, llm_client=llm_client, stream=options.stream)
     persist_draft_stage(task, store, workspace, draft, lifecycle_stage=lifecycle_stage)
 
     review_result = run_review_stage(
