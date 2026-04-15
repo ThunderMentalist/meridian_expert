@@ -227,14 +227,11 @@ def review_decide(review_id: str, decision: str = typer.Argument(..., help="appr
 @compat_app.command("check")
 def compat_check(changed_file: list[str] = typer.Option(None), markdown_report: bool = False) -> None:
     checker = CompatibilityChecker()
-    findings = checker.run(changed_file or [])
+    report = checker.check_changed_paths(changed_file or [])
     if markdown_report:
-        lines = ["# Compatibility risk report", ""]
-        for f in findings:
-            lines.append(f"- {f.upstream}: changed={f.changed}, risk={f.risk_level}")
-        print("\n".join(lines))
+        print(checker.render_markdown(report))
     else:
-        print(json.dumps([f.model_dump() for f in findings], indent=2))
+        print(report.model_dump_json(indent=2))
 
 
 @bundle_app.command("list")
