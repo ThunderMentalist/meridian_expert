@@ -1,0 +1,227 @@
+surfaces:
+  - aux_file: src/meridian_aux/contribution/control_contribution.py
+    cross_repo_route: analyzer_based_aux
+    dependency_mode: compat_shim
+    hotspot_tier: tier_1
+    compat_shim: true
+    under_tested: false
+    meridian_anchor_files:
+      - meridian/analysis/analyzer.py
+      - meridian/model/model.py
+      - meridian/model/context.py
+    mandatory_meridian_expansions:
+      - meridian/model/transformers.py
+      - meridian/model/equations.py
+      - meridian/data/input_data.py
+    supporting_tests:
+      - tests/test_contribution_control_contribution.py
+    known_breakage_patterns:
+      - Analyzer constructor drift
+      - DataTensors.validate_and_fill_missing_data() signature drift
+      - _get_scaled_data_tensors helper drift
+      - _inverse_outcome helper drift
+      - constant / coord naming drift
+    notes: "Primary analyzer compatibility shim; pair with analyzer line-span surfaces and model facade checks."
+
+  - aux_file: src/meridian_aux/predict/predict.py
+    cross_repo_route: model_object_based_aux
+    dependency_mode: semi_internal
+    hotspot_tier: tier_1
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files:
+      - meridian/model/model.py
+      - meridian/model/equations.py
+      - meridian/model/adstock_hill.py
+      - meridian/model/transformers.py
+      - meridian/data/input_data.py
+    mandatory_meridian_expansions:
+      - meridian/model/context.py
+      - meridian/model/spec.py
+    supporting_tests:
+      - tests/test_predict_predict.py
+    known_breakage_patterns:
+      - posterior variable name drift
+      - tensor attribute drift on fitted model
+      - adstock_hill_media/rf behavior or deprecation drift
+      - input-data coordinate contract drift
+    notes: "Model object and transform heavy route with high drift sensitivity."
+
+  - aux_file: src/meridian_aux/charts/transformed.py
+    cross_repo_route: model_object_based_aux
+    dependency_mode: semi_internal
+    hotspot_tier: tier_1
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files:
+      - meridian/model/model.py
+      - meridian/model/transformers.py
+      - meridian/model/adstock_hill.py
+      - meridian/model/equations.py
+    mandatory_meridian_expansions: [meridian/data/input_data.py]
+    supporting_tests: [tests/test_charts_transformed.py]
+    known_breakage_patterns:
+      - transform pipeline output naming drift
+      - adstock transform shape drift
+    notes: "Charts wrapper over transformed model outputs."
+
+  - aux_file: src/meridian_aux/dashboard/nordic_client.py
+    cross_repo_route: analyzer_based_aux
+    dependency_mode: compat_shim
+    hotspot_tier: tier_1
+    compat_shim: true
+    under_tested: false
+    meridian_anchor_files:
+      - meridian/analysis/analyzer.py
+      - src/meridian_aux/contribution/control_contribution.py
+    mandatory_meridian_expansions:
+      - meridian/analysis/visualizer.py
+    supporting_tests: [tests/test_dashboard_nordic_client.py]
+    known_breakage_patterns:
+      - Analyzer constructor drift
+      - summary output schema drift
+      - missing paid_summary_metrics() fallback semantics
+    notes: "Analyzer-facing dashboard client shim."
+
+  - aux_file: src/meridian_aux/nest/nest.py
+    cross_repo_route: decomposition_bridge_aux
+    dependency_mode: publicish_output
+    hotspot_tier: tier_1
+    compat_shim: false
+    under_tested: true
+    meridian_anchor_files:
+      - meridian/analysis/visualizer.py
+      - meridian/analysis/analyzer.py
+    mandatory_meridian_expansions: [meridian/model/model.py]
+    supporting_tests: [tests/test_nest_nest.py]
+    known_breakage_patterns:
+      - decomposition output schema drift
+      - contribution metric field drift
+    notes: "Tier-1 due to under-tested bridge behavior and decomposition coupling."
+
+  - aux_file: src/meridian_aux/diagnostics/multicollinearity.py
+    cross_repo_route: model_object_based_aux
+    dependency_mode: semi_internal
+    hotspot_tier: tier_1
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files:
+      - meridian/model/model.py
+      - meridian/model/adstock_hill.py
+      - meridian/model/transformers.py
+    mandatory_meridian_expansions: [meridian/data/input_data.py]
+    supporting_tests: [tests/test_diagnostics_multicollinearity.py]
+    known_breakage_patterns:
+      - transformed tensor availability drift
+      - channel coordinate drift
+    notes: "Diagnostics route tied to model transforms and fitted tensors."
+
+  - aux_file: src/meridian_aux/optimization/roi.py
+    cross_repo_route: analyzer_based_aux
+    dependency_mode: publicish_output
+    hotspot_tier: tier_2
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files: [meridian/analysis/analyzer.py, meridian/analysis/optimizer.py]
+    mandatory_meridian_expansions: [meridian/model/model.py]
+    supporting_tests: [tests/test_optimization_roi.py]
+    known_breakage_patterns: [summary metrics output drift]
+    notes: "Tier-2 wrapper around analyzer/optimizer-facing outputs."
+
+  - aux_file: src/meridian_aux/diagnostics/residuals.py
+    cross_repo_route: analyzer_based_aux
+    dependency_mode: publicish_output
+    hotspot_tier: tier_2
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files: [meridian/analysis/analyzer.py]
+    mandatory_meridian_expansions: [meridian/model/model.py]
+    supporting_tests: [tests/test_diagnostics_residuals.py]
+    known_breakage_patterns: [expected_vs_actual output schema drift]
+    notes: "Residual wrappers over analyzer outputs."
+
+  - aux_file: src/meridian_aux/data/actuals_vs_fitted.py
+    cross_repo_route: analyzer_based_aux
+    dependency_mode: publicish_output
+    hotspot_tier: tier_2
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files: [meridian/analysis/analyzer.py]
+    mandatory_meridian_expansions: [meridian/data/input_data.py]
+    supporting_tests: [tests/test_data_actuals_vs_fitted.py]
+    known_breakage_patterns: [expected_vs_actual schema drift]
+    notes: "Analyzer output convenience wrapper."
+
+  - aux_file: src/meridian_aux/data/curves.py
+    cross_repo_route: analyzer_based_aux
+    dependency_mode: publicish_output
+    hotspot_tier: tier_2
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files: [meridian/analysis/analyzer.py]
+    mandatory_meridian_expansions: [meridian/analysis/visualizer.py]
+    supporting_tests: [tests/test_data_curves.py]
+    known_breakage_patterns: [response/hill curve schema drift]
+    notes: "Curves wrapper around analyzer / visualizer surfaces."
+
+  - aux_file: src/meridian_aux/diagnostics/mass.py
+    cross_repo_route: schema_posterior_convention_aux
+    dependency_mode: schema_convention
+    hotspot_tier: tier_3
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files: [meridian/schema/serde/inference_data.py]
+    mandatory_meridian_expansions: [meridian/model/model.py]
+    supporting_tests: [tests/test_diagnostics_mass.py]
+    known_breakage_patterns: [posterior field naming convention drift]
+    notes: "Convention-dependent diagnostics consumer."
+
+  - aux_file: src/meridian_aux/study/iterate.py
+    cross_repo_route: schema_posterior_convention_aux
+    dependency_mode: duck_typed
+    hotspot_tier: tier_2
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files: [meridian/model/model.py, meridian/schema/serde/meridian_serde.py]
+    mandatory_meridian_expansions: [meridian/schema/processors/model_processor.py]
+    supporting_tests: [tests/test_study_iterate.py]
+    known_breakage_patterns: [duck-typed object expectation drift]
+    notes: "Iterative study workflow with duck-typed model/posterior assumptions."
+
+  - aux_file: src/meridian_aux/charts/coefficients.py
+    cross_repo_route: schema_posterior_convention_aux
+    dependency_mode: schema_convention
+    hotspot_tier: tier_2
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files: [meridian/model/model.py, meridian/schema/serde/inference_data.py]
+    mandatory_meridian_expansions: [meridian/model/transformers.py]
+    supporting_tests: [tests/test_charts_coefficients.py]
+    known_breakage_patterns: [posterior naming convention drift]
+    notes: "Coefficient charting based on posterior conventions."
+
+  - aux_file: src/meridian_aux/diagnostics/tstats.py
+    cross_repo_route: schema_posterior_convention_aux
+    dependency_mode: schema_convention
+    hotspot_tier: tier_3
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files: [meridian/schema/serde/inference_data.py]
+    mandatory_meridian_expansions: [meridian/model/model.py]
+    supporting_tests: [tests/test_diagnostics_tstats.py]
+    known_breakage_patterns: [posterior variable/shape convention drift]
+    notes: "T-stat diagnostics over posterior convention surfaces."
+
+  - aux_file: src/meridian_aux/contribution/media_contribution.py
+    cross_repo_route: decomposition_bridge_aux
+    dependency_mode: semi_internal
+    hotspot_tier: tier_2
+    compat_shim: false
+    under_tested: false
+    meridian_anchor_files:
+      - meridian/analysis/visualizer.py
+      - meridian/analysis/analyzer.py
+    mandatory_meridian_expansions: [meridian/model/model.py]
+    supporting_tests: [tests/test_contribution_media_contribution.py]
+    known_breakage_patterns: [visualizer.MediaSummary contribution_metrics drift]
+    notes: "Bridge between aux contribution helpers and visualizer decomposition metrics."
