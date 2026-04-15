@@ -32,3 +32,7 @@ def resolve_paths(cli_meridian: str | None = None, cli_aux: str | None = None, c
 
 def load_yaml_config(path: str) -> dict[str, Any]:
     return _read_yaml(Path(path))
+
+
+def llm_backend_kind() -> str:
+    return os.getenv("MERIDIAN_EXPERT_LLM_BACKEND", "openai").strip().lower() or "openai"
