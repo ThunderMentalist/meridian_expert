@@ -32,6 +32,7 @@ In Codex and CI-oriented tests, behavior is validated with synthetic fixture rep
 - fixture repos are generated under temp paths
 - `MERIDIAN_REPO_PATH` and `MERIDIAN_AUX_REPO_PATH` are set to fixture directories
 - `MERIDIAN_EXPERT_LLM_BACKEND=fake` keeps model behavior deterministic and offline
+- OpenAI runs can tune `MERIDIAN_EXPERT_OPENAI_TIMEOUT_S` (default `10800` seconds) when using the real backend
 
 This is intentional and does not change runtime design: humans can later point the same system at real local siblings.
 

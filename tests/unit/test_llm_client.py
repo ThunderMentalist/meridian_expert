@@ -133,6 +133,23 @@ def test_backend_selection_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert isinstance(_backend_from_settings(), DeterministicFakeBackend)
 
 
+def test_openai_backend_uses_configured_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, float] = {}
+
+    class FakeOpenAI:
+        def __init__(self, *, timeout):
+            captured["timeout"] = timeout
+            self.responses = SimpleNamespace(create=lambda **kwargs: SimpleNamespace(output_text="ok"))
+
+    monkeypatch.setenv("MERIDIAN_EXPERT_LLM_BACKEND", "openai")
+    monkeypatch.setenv("MERIDIAN_EXPERT_OPENAI_TIMEOUT_S", "10800")
+    monkeypatch.setattr("meridian_expert.llm.client.OpenAI", FakeOpenAI)
+
+    backend = _backend_from_settings()
+    assert isinstance(backend, OpenAIResponsesBackend)
+    assert captured["timeout"] == 10800.0
+
+
 def test_streaming_surface() -> None:
     client = LLMClient(backend=DeterministicFakeBackend(), profiles=_profiles())
     chunks = list(client.stream_text("formatter", "fmt", "hello world"))
