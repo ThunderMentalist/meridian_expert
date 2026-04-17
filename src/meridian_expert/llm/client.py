@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from meridian_expert.llm.profiles import ModelProfile, load_profiles
 from meridian_expert.llm.structured import coerce_to_model
 from meridian_expert.logging_utils import append_jsonl
-from meridian_expert.settings import llm_backend_kind
+from meridian_expert.settings import DEFAULT_OPENAI_TIMEOUT_S, llm_backend_kind, openai_timeout_s
 
 
 class LLMBackend(Protocol):
@@ -34,7 +34,7 @@ class LLMBackend(Protocol):
 class OpenAIResponsesBackend:
     backend_kind = "openai"
 
-    def __init__(self, *, client: OpenAI | None = None, max_attempts: int = 3, timeout_s: float = 30.0) -> None:
+    def __init__(self, *, client: OpenAI | None = None, max_attempts: int = 3, timeout_s: float = DEFAULT_OPENAI_TIMEOUT_S) -> None:
         self.client = client or OpenAI(timeout=timeout_s)
         self.max_attempts = max_attempts
 
@@ -319,4 +319,4 @@ def _backend_from_settings() -> LLMBackend:
     kind = llm_backend_kind()
     if kind == "fake":
         return DeterministicFakeBackend()
-    return OpenAIResponsesBackend()
+    return OpenAIResponsesBackend(timeout_s=openai_timeout_s())

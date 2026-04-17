@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from meridian_expert.settings import resolve_paths
+from meridian_expert.settings import DEFAULT_OPENAI_TIMEOUT_S, openai_timeout_s, resolve_paths
 
 
 def test_resolve_paths_precedence(monkeypatch, tmp_path: Path) -> None:
@@ -47,3 +47,13 @@ def test_resolve_paths_env_overrides_local(monkeypatch, tmp_path: Path) -> None:
     assert paths.meridian_repo_path == Path("../env-meridian")
     assert paths.meridian_aux_repo_path == Path("../env-aux")
     assert paths.workspace_path == Path("./env-runtime")
+
+
+def test_openai_timeout_default(monkeypatch) -> None:
+    monkeypatch.delenv("MERIDIAN_EXPERT_OPENAI_TIMEOUT_S", raising=False)
+    assert openai_timeout_s() == DEFAULT_OPENAI_TIMEOUT_S
+
+
+def test_openai_timeout_override(monkeypatch) -> None:
+    monkeypatch.setenv("MERIDIAN_EXPERT_OPENAI_TIMEOUT_S", "7200")
+    assert openai_timeout_s() == 7200.0

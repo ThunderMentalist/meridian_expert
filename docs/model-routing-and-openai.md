@@ -25,7 +25,10 @@ The OpenAI backend uses `client.responses.create(...)` with:
 - model from alias profile
 - reasoning effort from profile
 - instructions + input text
+- request timeout defaulting to `10800` seconds (3 hours)
 - retry on transient errors
+
+Timeout can be configured with `MERIDIAN_EXPERT_OPENAI_TIMEOUT_S`; invalid/non-positive values fall back to `10800`.
 
 Structured calls request JSON schema output and are validated/coerced into Pydantic models.
 

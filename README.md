@@ -36,6 +36,7 @@ Primary path and backend controls:
 - `MERIDIAN_AUX_REPO_PATH` (fallback `../meridian_aux`)
 - `MERIDIAN_EXPERT_WORKSPACE` (fallback `./runtime`)
 - `MERIDIAN_EXPERT_LLM_BACKEND` (`openai` default, `fake` for deterministic offline mode)
+- `MERIDIAN_EXPERT_OPENAI_TIMEOUT_S` (default `10800` seconds / 3 hours for OpenAI Responses requests)
 - `OPENAI_API_KEY` (required only for real OpenAI backend usage)
 
 Path precedence:

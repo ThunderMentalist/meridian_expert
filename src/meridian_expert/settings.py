@@ -7,6 +7,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel
 
+DEFAULT_OPENAI_TIMEOUT_S = 10800.0
+
 
 class RepoPaths(BaseModel):
     meridian_repo_path: Path
@@ -36,3 +38,14 @@ def load_yaml_config(path: str) -> dict[str, Any]:
 
 def llm_backend_kind() -> str:
     return os.getenv("MERIDIAN_EXPERT_LLM_BACKEND", "openai").strip().lower() or "openai"
+
+
+def openai_timeout_s() -> float:
+    raw = os.getenv("MERIDIAN_EXPERT_OPENAI_TIMEOUT_S")
+    if raw is None:
+        return DEFAULT_OPENAI_TIMEOUT_S
+    try:
+        parsed = float(raw)
+    except ValueError:
+        return DEFAULT_OPENAI_TIMEOUT_S
+    return parsed if parsed > 0 else DEFAULT_OPENAI_TIMEOUT_S
