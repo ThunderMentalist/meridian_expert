@@ -421,7 +421,29 @@ def _clarification_signal(text: str) -> tuple[bool, list[str], list[str], list[s
     questions: list[str] = []
     attachment_requirements: list[str] = []
 
-    has_goal = any(token in lower for token in ["need", "want", "explain", "investigate", "debug", "implement", "fix", "why", "how"])
+    has_goal = any(
+        token in lower
+        for token in [
+            "need",
+            "want",
+            "explain",
+            "investigate",
+            "debug",
+            "implement",
+            "fix",
+            "identify",
+            "list",
+            "find",
+            "locate",
+            "trace",
+            "summarize",
+            "describe",
+            "what",
+            "which",
+            "why",
+            "how",
+        ]
+    )
     has_scope = any(token in lower for token in ["meridian", "meridian_aux", "repo", ".py", "analysis", "model", "dashboard"])
     has_output = any(token in lower for token in ["output", "format", "markdown", "summary", "report", "table"])
     has_audience = any(token in lower for token in ["audience", "engineer", "pm", "analyst", "team"])

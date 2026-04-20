@@ -14,6 +14,9 @@ from meridian_expert.llm.client import (
     _backend_from_settings,
 )
 from meridian_expert.llm.profiles import ModelProfile, load_profiles
+from meridian_expert.llm.structured import openai_response_schema
+from meridian_expert.orchestration.runner import ReviewDecision
+from meridian_expert.orchestration.triage import TriageModelOutput
 
 
 class TriageOutput(BaseModel):
@@ -77,6 +80,32 @@ def test_openai_backend_interface_with_mocked_sdk() -> None:
     profile = ModelProfile(alias="triage", model="gpt-test", reasoning_effort="medium")
     parsed = backend.generate_structured(profile, "Classify", "body", TriageOutput)
     assert parsed.task_family == "theory"
+
+
+def test_openai_backend_structured_payload_sets_strict_and_object_schema() -> None:
+    captured: dict[str, object] = {}
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(output_text=json.dumps({"status": "approve", "issues": [], "suggested_edits": []}))
+
+    backend = OpenAIResponsesBackend(client=SimpleNamespace(responses=FakeResponses()))
+    profile = ModelProfile(alias="reviewer", model="gpt-test", reasoning_effort="medium")
+    parsed = backend.generate_structured(profile, "Review", "body", ReviewDecision)
+
+    assert parsed.status == "approve"
+    text_format = captured["text"]["format"]
+    assert text_format["strict"] is True
+    assert text_format["schema"]["additionalProperties"] is False
+
+
+def test_openai_response_schema_sets_additional_properties_for_structured_models() -> None:
+    review_schema = openai_response_schema(ReviewDecision)
+    triage_schema = openai_response_schema(TriageModelOutput)
+
+    assert review_schema["additionalProperties"] is False
+    assert triage_schema["additionalProperties"] is False
 
 
 def test_retry_backoff_for_transient_errors(monkeypatch: pytest.MonkeyPatch) -> None:

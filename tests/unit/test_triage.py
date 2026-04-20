@@ -103,3 +103,17 @@ def test_clarification_markdown_template() -> None:
 
     assert content.startswith("# Clarification request")
     assert "- " in content
+
+
+def test_clarified_direct_request_is_concrete_goal_once_scope_is_present() -> None:
+    clarified = (
+        "Identify the Bayesian MCMC algorithm that samples the posterior and list what the default hyper-parameters are.\n\n"
+        "## Clarification response\n"
+        "In the core Meridian repo, identify the Bayesian MCMC algorithm used to sample the posterior and list the default "
+        "sampler hyper-parameters. Focus on Meridian itself, not meridian_aux."
+    )
+
+    brief = deterministic_triage_from_text(clarified)
+
+    assert brief.needs_clarification is False
+    assert all("concrete goal" not in unknown.lower() for unknown in brief.unknowns)
