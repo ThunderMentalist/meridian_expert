@@ -169,3 +169,37 @@ def test_learning_and_exemplar_list_and_decide_flows(tmp_path: Path) -> None:
     rejected_exemplar = runner.invoke(app, ["exemplar", "list", "--status", "rejected"], env=env)
     assert f"LC-{task_id}" in approved_learning.stdout
     assert f"EC-{task_id}" in rejected_exemplar.stdout
+
+
+def test_clarification_unblocks_direct_request_and_reaches_gate(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    create_text = "Identify the Bayesian MCMC algorithm that samples the posterior and list what the default hyper-parameters are."
+    clarify_text = (
+        "In the core Meridian repo, identify the Bayesian MCMC algorithm used to sample the posterior and list the default "
+        "sampler hyper-parameters. Focus on Meridian itself, not meridian_aux."
+    )
+
+    task_id = _create_task(tmp_path, env, text=create_text)
+
+    created_status = runner.invoke(app, ["task", "status", task_id], env=env)
+    assert created_status.exit_code == 0
+    assert json.loads(created_status.stdout)["state"] == "NEEDS_CLARIFICATION"
+
+    clarified = runner.invoke(app, ["task", "clarify", task_id, clarify_text], env=env)
+    assert clarified.exit_code == 0
+
+    clarified_status = runner.invoke(app, ["task", "status", task_id], env=env)
+    assert clarified_status.exit_code == 0
+    assert json.loads(clarified_status.stdout)["state"] == "TRIAGED"
+
+    ran = runner.invoke(app, ["task", "run", task_id, "--to-gate"], env=env)
+    assert ran.exit_code == 0
+
+    queue = runner.invoke(app, ["review", "queue", "--status", "all", "--task-id", task_id], env=env)
+    assert queue.exit_code == 0
+    kinds = sorted(item["kind"] for item in json.loads(queue.stdout))
+    assert kinds == ["draft", "task_brief"]
+
+    workspace = Path(env["MERIDIAN_EXPERT_WORKSPACE"])
+    draft = workspace / "tasks" / task_id / "cycles" / "C01" / "prototype" / "draft" / "answer_draft.prototype.md"
+    assert draft.exists()

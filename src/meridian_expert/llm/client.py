@@ -10,7 +10,7 @@ from openai import OpenAI
 from pydantic import BaseModel
 
 from meridian_expert.llm.profiles import ModelProfile, load_profiles
-from meridian_expert.llm.structured import coerce_to_model
+from meridian_expert.llm.structured import coerce_to_model, openai_response_schema
 from meridian_expert.logging_utils import append_jsonl
 from meridian_expert.settings import DEFAULT_OPENAI_TIMEOUT_S, llm_backend_kind, openai_timeout_s
 
@@ -82,7 +82,8 @@ class OpenAIResponsesBackend:
             "format": {
                 "type": "json_schema",
                 "name": schema_name,
-                "schema": schema_model.model_json_schema(),
+                "schema": openai_response_schema(schema_model),
+                "strict": True,
             }
         }
         resp = self._create_response(
