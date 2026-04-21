@@ -138,14 +138,24 @@ class DeterministicFakeBackend:
         fields = schema_model.model_fields
 
         if alias == "triage":
-            family = "clarification" if any(k in lowered for k in ["unclear", "clarify", "ambiguous"]) else "theory"
+            request_text = _extract_triage_request_text(input_text)
+            normalized_request = _normalize_request_for_fake_triage(request_text)
+            lowered_request = normalized_request.lower()
+            has_goal = any(token in lowered_request for token in ["what", "which", "identify", "list", "find", "explain", "determine", "how", "proceed"])
+            has_scope = any(token in lowered_request for token in ["meridian", "meridian_aux", ".py", "repo", "model", "analysis", "module"])
+            has_response = _has_nonempty_section(request_text, "## Clarification response")
+            has_confirmation = _has_nonempty_section(request_text, "## Clarification confirmation")
+            needs_clarification = any(k in lowered_request for k in ["unclear", "clarify", "ambiguous"])
+            if (has_response or has_confirmation) and has_goal and has_scope:
+                needs_clarification = False
+            family = "clarification" if needs_clarification else "theory"
             payload = _payload_for_fields(
                 fields,
                 {
                     "task_family": family,
                     "confidence": 0.8,
                     "rationale": "Deterministic triage from keyword rules.",
-                    "needs_clarification": family == "clarification",
+                    "needs_clarification": needs_clarification,
                 },
             )
         elif alias == "reviewer":
@@ -321,3 +331,36 @@ def _backend_from_settings() -> LLMBackend:
     if kind == "fake":
         return DeterministicFakeBackend()
     return OpenAIResponsesBackend(timeout_s=openai_timeout_s())
+
+
+def _extract_triage_request_text(input_text: str) -> str:
+    marker = "Request:\n"
+    fallback_marker = "\nFallback hint:"
+    if marker not in input_text:
+        return input_text
+    request = input_text.split(marker, 1)[1]
+    if fallback_marker in request:
+        request = request.split(fallback_marker, 1)[0]
+    return request.strip()
+
+
+def _normalize_request_for_fake_triage(request_text: str) -> str:
+    lines: list[str] = []
+    for line in request_text.splitlines():
+        stripped = line.strip().lower()
+        if stripped in {"## clarification response", "## clarification confirmation"}:
+            continue
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
+def _has_nonempty_section(text: str, heading: str) -> bool:
+    lower = text.lower()
+    marker = heading.lower()
+    if marker not in lower:
+        return False
+    after = lower.split(marker, 1)[1]
+    for stop in ["\n## "]:
+        if stop in after:
+            after = after.split(stop, 1)[0]
+    return bool(after.strip())

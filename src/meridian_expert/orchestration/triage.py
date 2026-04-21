@@ -191,7 +191,7 @@ SCHEMA_SIGNALS = ["coefficient charts", "t-stats", "posterior variable names", "
 def triage_from_text(text: str, llm_client: LLMClient | None = None) -> TaskBrief:
     fallback = deterministic_triage_from_text(text)
     model_result = _model_triage(text=text, fallback=fallback, llm_client=llm_client)
-    merged = _merge_briefs(base=fallback, model=model_result)
+    merged = _resolve_clarification_policy(base=fallback, model=_merge_briefs(base=fallback, model=model_result), text=text)
     return _enrich_task_brief(merged, text)
 
 
@@ -354,8 +354,7 @@ def _merge_briefs(base: TaskBrief, model: TaskBrief | None) -> TaskBrief:
                 setattr(merged, field_name, _dedupe([*base_value, *model_value]))
             continue
         if isinstance(model_value, bool):
-            if model_value:
-                setattr(merged, field_name, True)
+            setattr(merged, field_name, model_value)
             continue
         setattr(merged, field_name, model_value)
 
@@ -366,9 +365,38 @@ def _merge_briefs(base: TaskBrief, model: TaskBrief | None) -> TaskBrief:
     if model.domain_confidence is not None:
         merged.domain_confidence = model.domain_confidence
 
-    if model.needs_clarification:
-        merged.needs_clarification = True
+    return merged
 
+
+def _resolve_clarification_policy(base: TaskBrief, model: TaskBrief, text: str) -> TaskBrief:
+    merged = model.model_copy(deep=True)
+    has_response = _has_clarification_response(text)
+    has_confirmation = _has_clarification_confirmation(text)
+    concrete_enough = _is_concrete_enough_to_proceed(text)
+    needs_clarification, questions, attachment_requirements, unknowns = _clarification_signal(text)
+
+    if has_response or has_confirmation:
+        if concrete_enough:
+            merged.needs_clarification = False
+            merged.clarification_questions = []
+            merged.attachment_requirements = []
+            merged.unknowns = [u for u in merged.unknowns if "Missing " not in u]
+            return merged
+        if not needs_clarification:
+            merged.needs_clarification = False
+            merged.clarification_questions = []
+            return merged
+
+    if needs_clarification:
+        merged.needs_clarification = True
+        merged.clarification_questions = _dedupe([*base.clarification_questions, *merged.clarification_questions, *questions])
+        merged.attachment_requirements = _dedupe([*base.attachment_requirements, *merged.attachment_requirements, *attachment_requirements])
+        merged.unknowns = _dedupe([*base.unknowns, *merged.unknowns, *unknowns])
+    else:
+        merged.needs_clarification = False
+        merged.clarification_questions = []
+        merged.attachment_requirements = []
+        merged.unknowns = [u for u in merged.unknowns if not u.startswith("Missing ")]
     return merged
 
 
@@ -421,7 +449,33 @@ def _clarification_signal(text: str) -> tuple[bool, list[str], list[str], list[s
     questions: list[str] = []
     attachment_requirements: list[str] = []
 
-    has_goal = any(
+    has_goal = _has_concrete_ask(lower)
+    has_scope = _has_repo_scope(lower)
+    concrete_enough = has_goal and has_scope
+    has_context = any(token in lower for token in ["traceback", "error", "failing", "snippet", "stack", "exception", "repro"])
+    mentions_bug = any(token in lower for token in ["error", "bug", "failing", "traceback", "broken"])
+
+    if len(" ".join(lines)) < 20 or not has_goal:
+        missing.append("concrete goal")
+        questions.append("What exact question or outcome do you want from this task?")
+    if not has_scope:
+        missing.append("repo scope")
+        questions.append("Which repo and file/module should this focus on (meridian, meridian_aux, or both)?")
+
+    if mentions_bug and not has_context:
+        missing.append("failing context")
+        questions.append("Please share the failing snippet, stack trace, or reproducible command.")
+        attachment_requirements.append("error logs or stack trace")
+    elif not concrete_enough and any(token in lower for token in ["screenshot", "attached", "attachment", "log file"]) and "attachment" not in lower:
+        missing.append("required attachments")
+        questions.append("Please attach the file or screenshot referenced in the request.")
+        attachment_requirements.append("referenced attachment")
+
+    return bool(missing), _dedupe(questions), _dedupe(attachment_requirements), [f"Missing {item}" for item in missing]
+
+
+def _has_concrete_ask(lower: str) -> bool:
+    return any(
         token in lower
         for token in [
             "need",
@@ -442,30 +496,49 @@ def _clarification_signal(text: str) -> tuple[bool, list[str], list[str], list[s
             "which",
             "why",
             "how",
+            "determine",
+            "proceed",
         ]
     )
-    has_scope = any(token in lower for token in ["meridian", "meridian_aux", "repo", ".py", "analysis", "model", "dashboard"])
-    has_output = any(token in lower for token in ["output", "format", "markdown", "summary", "report", "table"])
-    has_audience = any(token in lower for token in ["audience", "engineer", "pm", "analyst", "team"])
-    has_context = any(token in lower for token in ["traceback", "error", "failing", "snippet", "stack", "exception", "repro"])
 
-    if len(" ".join(lines)) < 30 or not has_goal:
-        missing.append("concrete goal")
-        questions.append("What exact question or outcome do you want from this task?")
-    if not has_scope:
-        missing.append("repo scope")
-        questions.append("Which repo and file/module should this focus on (meridian, meridian_aux, or both)?")
-    if not has_output and len(text.strip()) < 40:
-        questions.append("What output format do you want (short answer, deep report, code patch, checklist)?")
-    if not has_audience and len(text.strip()) < 40:
-        questions.append("Who is the audience for the final output?")
 
-    if any(token in lower for token in ["error", "bug", "failing", "traceback", "broken"]) and not has_context:
-        missing.append("failing context")
-        questions.append("Please share the failing snippet, stack trace, or reproducible command.")
-        attachment_requirements.append("error logs or stack trace")
+def _has_repo_scope(lower: str) -> bool:
+    return any(
+        token in lower
+        for token in [
+            "meridian",
+            "meridian_aux",
+            "repo",
+            ".py",
+            "analysis",
+            "model",
+            "dashboard",
+            "module",
+            "package",
+            "path",
+        ]
+    )
 
-    return bool(missing), _dedupe(questions), _dedupe(attachment_requirements), [f"Missing {item}" for item in missing]
+
+def _has_clarification_response(text: str) -> bool:
+    lower = text.lower()
+    marker = "## clarification response"
+    if marker not in lower:
+        return False
+    return bool(lower.split(marker, 1)[1].strip())
+
+
+def _has_clarification_confirmation(text: str) -> bool:
+    lower = text.lower()
+    marker = "## clarification confirmation"
+    if marker not in lower:
+        return False
+    return bool(lower.split(marker, 1)[1].strip())
+
+
+def _is_concrete_enough_to_proceed(text: str) -> bool:
+    lower = text.lower()
+    return _has_concrete_ask(lower) and _has_repo_scope(lower)
 
 
 def _dedupe(values: list[str]) -> list[str]:
@@ -487,8 +560,25 @@ def _suggest_bundles(family: TaskFamily, domain: str) -> list[str]:
     return [bundle["name"] for bundle in bundles[:2]]
 
 
-def build_clarification_markdown(brief: TaskBrief) -> str:
-    lines = ["# Clarification request", "", "Please provide the following before we continue triage:", ""]
+def build_clarification_markdown(brief: TaskBrief, task_id: str | None = None) -> str:
+    lines = [
+        "# Clarification request",
+        "",
+        "Triage is blocked only because critical information is still missing.",
+        "",
+        "## Current interpretation",
+        brief.goal.strip() or "The task goal is not concrete yet.",
+        "",
+        "## How to continue",
+    ]
+    if task_id:
+        lines.append(f"- If this interpretation is basically correct: `meridian-expert task confirm {task_id}`")
+        lines.append(f"- If it needs correction: `meridian-expert task clarify {task_id} \"<correction>\"`")
+    else:
+        lines.append("- If this interpretation is basically correct: `meridian-expert task confirm <task_id>`")
+        lines.append("- If it needs correction: `meridian-expert task clarify <task_id> \"<correction>\"`")
+    if brief.clarification_questions:
+        lines.extend(["", "## Required clarification"])
     for question in brief.clarification_questions:
         lines.append(f"- {question}")
     if brief.attachment_requirements:

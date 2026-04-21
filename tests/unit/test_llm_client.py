@@ -65,6 +65,22 @@ def test_fake_backend_structured_generation() -> None:
     assert triage.needs_clarification is True
 
 
+def test_fake_triage_uses_request_section_not_fallback_blob() -> None:
+    client = LLMClient(backend=DeterministicFakeBackend(), profiles=_profiles())
+    structured_input = (
+        "Classify and complete triage for the request.\n"
+        "Request:\n"
+        "Only search meridian/model/model.py. What defaults are used?\n\n"
+        "## Clarification response\n"
+        "Focus on meridian model paths only.\n"
+        "\nFallback hint:\n"
+        '{"notes":"ambiguous unclear clarify"}'
+    )
+    triage = client.generate_structured("triage", "Classify", structured_input, TriageOutput)
+    assert triage.task_family == "theory"
+    assert triage.needs_clarification is False
+
+
 def test_openai_backend_interface_with_mocked_sdk() -> None:
     fake_response = SimpleNamespace(output_text=json.dumps({"task_family": "theory", "confidence": 0.9, "rationale": "ok", "needs_clarification": False}))
 
