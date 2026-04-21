@@ -203,3 +203,45 @@ def test_clarification_unblocks_direct_request_and_reaches_gate(tmp_path: Path) 
     workspace = Path(env["MERIDIAN_EXPERT_WORKSPACE"])
     draft = workspace / "tasks" / task_id / "cycles" / "C01" / "prototype" / "draft" / "answer_draft.prototype.md"
     assert draft.exists()
+
+
+def test_confirmation_unblocks_task_and_reaches_gate(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    task_id = _create_task(tmp_path, env, text="meridian/model/model.py")
+
+    created_status = runner.invoke(app, ["task", "status", task_id], env=env)
+    assert created_status.exit_code == 0
+    assert json.loads(created_status.stdout)["state"] == "NEEDS_CLARIFICATION"
+
+    confirmed = runner.invoke(app, ["task", "confirm", task_id], env=env)
+    assert confirmed.exit_code == 0
+
+    confirmed_status = runner.invoke(app, ["task", "status", task_id], env=env)
+    assert confirmed_status.exit_code == 0
+    assert json.loads(confirmed_status.stdout)["state"] == "TRIAGED"
+
+    ran = runner.invoke(app, ["task", "run", task_id, "--to-gate"], env=env)
+    assert ran.exit_code == 0
+
+    queue = runner.invoke(app, ["review", "queue", "--status", "all", "--task-id", task_id], env=env)
+    assert queue.exit_code == 0
+    kinds = sorted(item["kind"] for item in json.loads(queue.stdout))
+    assert kinds == ["draft", "task_brief"]
+
+    workspace = Path(env["MERIDIAN_EXPERT_WORKSPACE"])
+    draft = workspace / "tasks" / task_id / "cycles" / "C01" / "prototype" / "draft" / "answer_draft.prototype.md"
+    assert draft.exists()
+
+
+def test_direct_scoped_code_question_triages_without_clarification(tmp_path: Path) -> None:
+    env = _env(tmp_path)
+    text = (
+        "Only search the Meridian package to determine the answer to the following question. Focus only on the meridian repo, "
+        "specifically the model/prior code paths. Do not use meridian_aux. What is the default distribution type, and what are "
+        "the default distribution parameters, for the beta coefficient on media variables when using an ROI prior with default "
+        "settings? Return a short markdown answer grounded in the Meridian code paths you used."
+    )
+    task_id = _create_task(tmp_path, env, text=text)
+    created_status = runner.invoke(app, ["task", "status", task_id], env=env)
+    assert created_status.exit_code == 0
+    assert json.loads(created_status.stdout)["state"] == "TRIAGED"

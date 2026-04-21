@@ -99,10 +99,10 @@ def test_state_transitions_for_clarification_path() -> None:
 
 def test_clarification_markdown_template() -> None:
     brief = deterministic_triage_from_text("bug")
-    content = build_clarification_markdown(brief)
+    content = build_clarification_markdown(brief, "T-20260421-0001")
 
     assert content.startswith("# Clarification request")
-    assert "- " in content
+    assert "task confirm T-20260421-0001" in content
 
 
 def test_clarified_direct_request_is_concrete_goal_once_scope_is_present() -> None:
@@ -117,3 +117,24 @@ def test_clarified_direct_request_is_concrete_goal_once_scope_is_present() -> No
 
     assert brief.needs_clarification is False
     assert all("concrete goal" not in unknown.lower() for unknown in brief.unknowns)
+
+
+def test_direct_scoped_code_question_is_triaged_without_clarification() -> None:
+    prompt = (
+        "Only search the Meridian package to determine the answer to the following question. Focus only on the meridian repo, "
+        "specifically the model/prior code paths. Do not use meridian_aux. What is the default distribution type, and what are "
+        "the default distribution parameters, for the beta coefficient on media variables when using an ROI prior with default "
+        "settings? Return a short markdown answer grounded in the Meridian code paths you used."
+    )
+    brief = triage_from_text(prompt, llm_client=LLMClient(backend=DeterministicFakeBackend(), profiles=_triage_profiles()))
+    assert brief.needs_clarification is False
+
+
+def test_confirmation_marker_unblocks_when_goal_and_scope_exist() -> None:
+    text = (
+        "Investigate model priors in meridian/model/model.py and explain defaults.\n\n"
+        "## Clarification confirmation\n"
+        "Yes, proceed with the current interpretation."
+    )
+    brief = triage_from_text(text, llm_client=LLMClient(backend=DeterministicFakeBackend(), profiles=_triage_profiles()))
+    assert brief.needs_clarification is False

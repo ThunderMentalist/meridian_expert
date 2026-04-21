@@ -11,7 +11,12 @@ Triage captures suggested bundles, anchor files, and cross-repo hints.
 
 ## 2) Clarification
 
-If clarification is needed, a clarification request artifact is generated. `task clarify` appends user clarification, rewrites brief artifacts, and transitions back toward `TRIAGED` when questions are resolved.
+If clarification is needed, a clarification request artifact is generated with an explicit yes/no continuation path:
+
+- `task confirm <task_id>` appends a lightweight confirmation (`## Clarification confirmation`) and re-runs triage.
+- `task clarify <task_id> "<message>"` appends a correction (`## Clarification response`) and re-runs triage.
+
+After confirmation or clarification, tasks move to `TRIAGED` unless a critical blocker still remains (for example no concrete goal, no repo/file/module scope, or missing failing context for a bug task).
 
 ## 3) Investigation
 

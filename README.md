@@ -76,6 +76,7 @@ The task state machine moves through:
 Key lifecycle behavior:
 
 - triage can request clarification and generate clarification artifacts
+- clarification supports both `task confirm` (yes/proceed) and `task clarify` (correction) paths
 - investigation is anchor-first and bundle-guided
 - delivery is review-gated
 - redirection can keep the same task and start a new cycle
